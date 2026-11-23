@@ -100,7 +100,32 @@ let fecharFormulario = function () {
     modalFormularioAberto.value = false;
 };
 
+let validarFormulario = function () {
+
+    if (formulario.value.nome.trim() === "") {
+        return "Informe o nome do professor.";
+    }
+
+    if (formulario.value.email.trim() === "") {
+        return "Informe o e-mail do professor.";
+    }
+
+    if (!formulario.value.email.includes("@")) {
+        return "Informe um e-mail válido.";
+    }
+
+    return "";
+
+};
+
 let salvarProfessor = async function () {
+
+    const problema = validarFormulario();
+
+    if (problema) {
+        mostrarNotificacao(problema, "alerta");
+        return;
+    }
 
     const dados = {
         nome: formulario.value.nome,
@@ -263,7 +288,8 @@ onMounted(() => {
         :aberto="modalFormularioAberto"
         @fechar="fecharFormulario"
     >
-        <form @submit.prevent="salvarProfessor">
+        <!-- novalidate desliga o balão do navegador; a conferência é feita no validarFormulario -->
+        <form novalidate @submit.prevent="salvarProfessor">
             <div class="form-fields">
                 <div class="field full">
                     <label for="professor-nome">Nome completo</label>
@@ -283,6 +309,15 @@ onMounted(() => {
                 </button>
             </div>
         </form>
+
+        <!-- Com o modal aberto, o resto da página fica atrás do fundo escuro.
+             Por isso o alerta é mostrado aqui dentro, para aparecer por cima. -->
+        <Notificacao
+            v-if="notificacao.exibir && modalFormularioAberto"
+            :mensagem="notificacao.mensagem"
+            :tipo="notificacao.tipo"
+            @fechar="fecharNotificacao"
+        />
     </Modal>
 
     <Modal
@@ -299,7 +334,7 @@ onMounted(() => {
     </Modal>
 
     <Notificacao
-        v-if="notificacao.exibir"
+        v-if="notificacao.exibir && !modalFormularioAberto"
         :mensagem="notificacao.mensagem"
         :tipo="notificacao.tipo"
         @fechar="fecharNotificacao"
