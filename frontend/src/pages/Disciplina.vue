@@ -1,258 +1,368 @@
 <script setup>
-import Menu from '../components/Menu.vue';
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import * as disciplinaService from '../services/disciplinaService';
+import * as cursoService from '../services/cursoService';
+import * as professorService from '../services/professorService';
+import Modal from '../components/Modal.vue';
+import Notificacao from '../components/Notificacao.vue';
+import CampoBusca from '../components/CampoBusca.vue';
 
-const disciplina = ref([]);
+const disciplinas = ref([]);
 const carregando = ref(false);
 
-let carregardisciplina = async function () {
+const cursos = ref([]);
+const professores = ref([]);
 
-    carregando.value = true;
+const filtro = ref("");
 
-    try {
+const disciplinasFiltradas = computed(function () {
+  const texto = filtro.value.trim().toLowerCase();
 
-        disciplina.value = await disciplinaService.listar();
+  return disciplinas.value.filter(function (disciplina) {
+    return disciplina.nome.toLowerCase().includes(texto);
+  });
+});
 
-    } catch (erro) {
+const modalFormularioAberto = ref(false);
 
-        console.error("Erro ao carregar disciplina:", erro);
-        alert("Não foi possível carregar os disciplina.");
+const formulario = ref({
+  id: null,
+  nome: "",
+  cargaHoraria: "",
+  curso: "",
+  professor: ""
+});
 
-    } finally {
+const modalRemoverAberto = ref(false);
+const disciplinaParaRemover = ref({ id: null, nome: "" });
 
-        carregando.value = false;
+const notificacao = ref({
+  exibir: false,
+  mensagem: "",
+  tipo: "sucesso"
+});
+
+let temporizador = null;
+
+let fecharNotificacao = function () {
+  notificacao.value.exibir = false;
+};
+
+let mostrarNotificacao = function (mensagem, tipo) {
+  notificacao.value = {
+    exibir: true,
+    mensagem: mensagem,
+    tipo: tipo
+  };
+
+  clearTimeout(temporizador);
+  temporizador = setTimeout(fecharNotificacao, 4000);
+};
+
+let carregarDisciplinas = async function () {
+
+  carregando.value = true;
+
+  try {
+
+    disciplinas.value = await disciplinaService.listar();
+
+  } catch (erro) {
+
+    mostrarNotificacao(erro.message, "erro");
+
+  } finally {
+
+    carregando.value = false;
+
+  }
+
+};
+
+let carregarOpcoes = async function () {
+
+  try {
+
+    cursos.value = await cursoService.listar();
+    professores.value = await professorService.listar();
+
+  } catch (erro) {
+
+    mostrarNotificacao(erro.message, "erro");
+
+  }
+
+};
+
+let abrirCadastro = function () {
+
+  formulario.value = {
+    id: null,
+    nome: "",
+    cargaHoraria: "",
+    curso: "",
+    professor: ""
+  };
+
+  modalFormularioAberto.value = true;
+
+};
+
+let abrirEdicao = async function (item) {
+
+  try {
+
+    const disciplina = await disciplinaService.buscarPorId(item.id);
+
+    formulario.value = {
+      id: disciplina.id,
+      nome: disciplina.nome,
+      cargaHoraria: disciplina.cargaHoraria,
+      curso: disciplina.cursoId,
+      professor: disciplina.professorId
+    };
+
+    modalFormularioAberto.value = true;
+
+  } catch (erro) {
+
+    mostrarNotificacao(erro.message, "erro");
+
+  }
+
+};
+
+let fecharFormulario = function () {
+  modalFormularioAberto.value = false;
+};
+
+let salvarDisciplina = async function () {
+
+  const dados = {
+    nome: formulario.value.nome,
+    cargaHoraria: Number(formulario.value.cargaHoraria),
+    curso: formulario.value.curso,
+    professor: formulario.value.professor
+  };
+
+  try {
+
+    let mensagem = "";
+
+    if (formulario.value.id) {
+
+      await disciplinaService.alterar(formulario.value.id, dados);
+      mensagem = "Disciplina atualizada com sucesso!";
+
+    } else {
+
+      await disciplinaService.cadastrar(dados);
+      mensagem = "Disciplina cadastrada com sucesso!";
 
     }
+
+    fecharFormulario();
+    mostrarNotificacao(mensagem, "sucesso");
+
+    await carregarDisciplinas();
+
+  } catch (erro) {
+
+    fecharFormulario();
+    mostrarNotificacao(erro.message, "erro");
+
+  }
+
+};
+
+let abrirRemocao = function (disciplina) {
+
+  disciplinaParaRemover.value = disciplina;
+  modalRemoverAberto.value = true;
+
+};
+
+let fecharRemocao = function () {
+  modalRemoverAberto.value = false;
+};
+
+let confirmarRemocao = async function () {
+
+  try {
+
+    await disciplinaService.excluir(disciplinaParaRemover.value.id);
+
+    fecharRemocao();
+    mostrarNotificacao("Disciplina removida com sucesso!", "sucesso");
+
+    await carregarDisciplinas();
+
+  } catch (erro) {
+
+    fecharRemocao();
+    mostrarNotificacao(erro.message, "erro");
+
+  }
 
 };
 
 onMounted(() => {
-    carregarCursos();
+  carregarDisciplinas();
+  carregarOpcoes();
 });
 </script>
+
 <template>
-  <div class="app">
 
-    <main class="main">
-      
-      <section class="content">
-        <div class="page-intro">
-          <div>
-            <h2>Lista de disciplinas</h2>
-            <p>Gerencie as disciplinas vinculadas aos cursos.</p>
-          </div><a class="button button-primary" href="#modal-cadastro"><span class="plus">+</span>Novo disciplina</a>
-        </div>
-        <div class="summary-row">
-          <div class="summary-card">
-            <div class="summary-icon">▤</div>
-            <div><span>Disciplinas cadastradas</span><strong>{{disciplina.length}}</strong></div>
-          </div>
-          <div class="summary-note"><span class="status-dot"></span>Dados fictícios para demonstração</div>
-        </div>
-        <div class="table-card">
-          <div class="table-toolbar">
-            <div><strong>Todos os registros</strong><span>Consulte e gerencie disciplinas</span></div>
-            <div class="search-box">⌕ &nbsp; Busca visual (não funcional)</div>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                <th>ID</th>
-                <th>Curso</th>
-                <th>Carga horária</th>
-                <th>Ações</th>
-              </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div class="person-cell">
-                      <div class="person-avatar">PI</div>
-                      <div><span class="person-name">Programação para Internet</span><span class="person-sub">ID
-                          #001</span></div>
-                    </div>
-                  </td>
-                  <td>PI-102</td>
-                  <td>Técnico em Informática</td>
-                  <td>80 h</td>
-                  <td>
-                    <div class="actions">
-                      <a class="action-button" href="#modal-editar" title="Editar" aria-label="Editar">✎</a>
-                      <a class="action-button delete" href="#modal-remover-1" title="Remover" aria-label="Remover">⌫</a>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="person-cell">
-                      <div class="person-avatar">BD</div>
-                      <div><span class="person-name">Banco de Dados</span><span class="person-sub">ID #002</span></div>
-                    </div>
-                  </td>
-                  <td>BD-201</td>
-                  <td>Técnico em Informática</td>
-                  <td>60 h</td>
-                  <td>
-                    <div class="actions">
-                      <a class="action-button" href="#modal-editar" title="Editar" aria-label="Editar">✎</a>
-                      <a class="action-button delete" href="#modal-remover-2" title="Remover" aria-label="Remover">⌫</a>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="person-cell">
-                      <div class="person-avatar">FA</div>
-                      <div><span class="person-name">Fundamentos de Alimentos</span><span class="person-sub">ID
-                          #003</span></div>
-                    </div>
-                  </td>
-                  <td>FA-110</td>
-                  <td>Técnico em Alimentos</td>
-                  <td>40 h</td>
-                  <td>
-                    <div class="actions">
-                      <a class="action-button" href="#modal-editar" title="Editar" aria-label="Editar">✎</a>
-                      <a class="action-button delete" href="#modal-remover-3" title="Remover" aria-label="Remover">⌫</a>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="person-cell">
-                      <div class="person-avatar">ES</div>
-                      <div><span class="person-name">Engenharia de Software</span><span class="person-sub">ID
-                          #004</span></div>
-                    </div>
-                  </td>
-                  <td>ES-301</td>
-                  <td>Análise e Desenvolvimento de Sistemas</td>
-                  <td>80 h</td>
-                  <td>
-                    <div class="actions">
-                      <a class="action-button" href="#modal-editar" title="Editar" aria-label="Editar">✎</a>
-                      <a class="action-button delete" href="#modal-remover-4" title="Remover" aria-label="Remover">⌫</a>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="table-footer"><span>Exibindo 4 registros</span><span>Protótipo estático para atividade
-              didática</span></div>
-        </div>
-      </section>
-    </main>
-  </div>
+  <section class="content">
+    <div class="page-intro">
+      <div>
+        <h2>Lista de disciplinas</h2>
+        <p>Gerencie as disciplinas vinculadas aos cursos.</p>
+      </div><a class="button button-primary" href="#" @click.prevent="abrirCadastro"><span class="plus">+</span>Nova disciplina</a>
+    </div>
+    <div class="summary-row">
+      <div class="summary-card">
+        <div class="summary-icon">▤</div>
+        <div><span>Disciplinas cadastradas</span><strong>{{ disciplinas.length }}</strong></div>
+      </div>
+      <div class="summary-note"><span class="status-dot"></span>Dados carregados da API</div>
+    </div>
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div><strong>Todos os registros</strong><span>Consulte e gerencie disciplinas</span></div>
+        <CampoBusca v-model="filtro" placeholder="Buscar disciplina por nome" />
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Disciplina</th>
+              <th>Carga horária</th>
+              <th>Curso</th>
+              <th>Professor</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="carregando">
+              <td colspan="6">Carregando disciplinas...</td>
+            </tr>
 
-  <section class="modal" id="modal-cadastro">
-    <div class="modal-panel">
-      <header class="modal-header">
-        <div><span class="eyebrow">NOVO CADASTRO</span>
-          <h2>Novo disciplina</h2>
-          <p>Preencha os campos abaixo para adicionar um registro.</p>
-        </div><a class="icon-button" href="#" aria-label="Fechar modal">×</a>
-      </header>
-      <form>
-        <div class="form-fields">
-          <div class="field full"><label for="campo0">Nome da disciplina</label><input id="campo0" type="text"
-              placeholder="Ex.: Programação para Internet"></div>
-          <div class="field"><label for="campo1">Código</label><input id="campo1" type="text" placeholder="Ex.: PI-102">
-          </div>
-          <div class="field"><label for="campo2">Curso</label><select id="campo2" name="campo2">
-              <option>Selecione...</option>
-              <option>Técnico em Informática</option>
-              <option>Técnico em Alimentos</option>
-              <option>Análise e Desenvolvimento de Sistemas</option>
-            </select></div>
-          <div class="field"><label for="campo3">Carga horária (h)</label><input id="campo3" type="number"
-              placeholder="Ex.: 80"></div>
-        </div>
-        <div class="modal-footer"><a class="button button-secondary" href="#">Cancelar</a><button
-            class="button button-primary" type="button">Salvar cadastro</button></div>
-        <p class="modal-note">Modal demonstrativo: o formulário não salva dados sem JavaScript.</p>
-      </form>
+            <tr v-else-if="disciplinas.length === 0">
+              <td colspan="6">Nenhuma disciplina cadastrada.</td>
+            </tr>
+
+            <tr v-else-if="disciplinasFiltradas.length === 0">
+              <td colspan="6">Nenhuma disciplina encontrada para "{{ filtro }}".</td>
+            </tr>
+
+            <tr v-for="item in disciplinasFiltradas" :key="item.id">
+              <td>#{{ item.id }}</td>
+
+              <td>
+                <div class="person-cell">
+                  <div class="person-avatar">
+                    {{ item.nome.substring(0, 2).toUpperCase() }}
+                  </div>
+                  <div>
+                    <span class="person-name">{{ item.nome }}</span>
+                  </div>
+                </div>
+              </td>
+
+              <td>{{ item.cargaHoraria }} horas</td>
+
+              <td>{{ item.curso }}</td>
+
+              <td>{{ item.professor }}</td>
+
+              <td>
+                <div class="actions">
+                  <a class="action-button" href="#" title="Editar" @click.prevent="abrirEdicao(item)">✎</a>
+                  <a class="action-button delete" href="#" title="Remover" @click.prevent="abrirRemocao(item)">⌫</a>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <span>Exibindo {{ disciplinasFiltradas.length }} de {{ disciplinas.length }} registros</span>
+        <span>Dados carregados do sistema</span>
+      </div>
     </div>
   </section>
 
-  <section class="modal" id="modal-editar">
-    <div class="modal-panel">
-      <header class="modal-header">
-        <div><span class="eyebrow">EDITAR REGISTRO</span>
-          <h2>Editar disciplina</h2>
-          <p>Exemplo visual de formulário de edição.</p>
-        </div><a class="icon-button" href="#" aria-label="Fechar modal">×</a>
-      </header>
-      <form>
-        <div class="form-fields">
-          <div class="field full"><label for="campo0">Nome da disciplina</label><input id="campo0" type="text"
-              placeholder="Ex.: Programação para Internet"></div>
-          <div class="field"><label for="campo1">Código</label><input id="campo1" type="text" placeholder="Ex.: PI-102">
-          </div>
-          <div class="field"><label for="campo2">Curso</label><select id="campo2" name="campo2">
-              <option>Selecione...</option>
-              <option>Técnico em Informática</option>
-              <option>Técnico em Alimentos</option>
-              <option>Análise e Desenvolvimento de Sistemas</option>
-            </select></div>
-          <div class="field"><label for="campo3">Carga horária (h)</label><input id="campo3" type="number"
-              placeholder="Ex.: 80"></div>
+  <Modal
+    :titulo="formulario.id ? 'Editar disciplina' : 'Nova disciplina'"
+    :etiqueta="formulario.id ? 'EDITAR REGISTRO' : 'NOVO CADASTRO'"
+    :descricao="formulario.id ? 'Altere as informações da disciplina selecionada.' : 'Preencha os campos abaixo para adicionar um registro.'"
+    :aberto="modalFormularioAberto"
+    @fechar="fecharFormulario"
+  >
+    <form @submit.prevent="salvarDisciplina">
+      <div class="form-fields">
+        <div class="field full">
+          <label for="disciplina-nome">Nome da disciplina</label>
+          <input id="disciplina-nome" type="text" v-model="formulario.nome"
+            placeholder="Ex.: Programação para Internet" required>
         </div>
-        <div class="modal-footer"><a class="button button-secondary" href="#">Cancelar</a><button
-            class="button button-primary" type="button">Salvar alterações</button></div>
-        <p class="modal-note">Sem JavaScript, os campos não são preenchidos automaticamente.</p>
-      </form>
-    </div>
-  </section>
 
-  <section class="modal" id="modal-remover-1">
-    <div class="modal-panel">
-      <header class="modal-header">
-        <div><span class="eyebrow">REMOVER REGISTRO</span>
-          <h2>Confirmar remoção</h2>
-          <p>Esta é uma demonstração visual. A remoção não altera os dados estáticos.</p>
-        </div><a class="icon-button" href="#" aria-label="Fechar modal">×</a>
-      </header>
-      <div class="modal-footer"><a class="button button-secondary" href="#">Cancelar</a><a class="button button-danger"
-          href="#">Confirmar remoção</a></div>
+        <div class="field">
+          <label for="disciplina-curso">Curso</label>
+          <select id="disciplina-curso" v-model="formulario.curso" required>
+            <option value="" disabled>Selecione...</option>
+            <option v-for="curso in cursos" :key="curso.id" :value="curso.id">
+              {{ curso.nome }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="disciplina-professor">Professor</label>
+          <select id="disciplina-professor" v-model="formulario.professor" required>
+            <option value="" disabled>Selecione...</option>
+            <option v-for="professor in professores" :key="professor.id" :value="professor.id">
+              {{ professor.nome }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="disciplina-carga">Carga horária (h)</label>
+          <input id="disciplina-carga" type="number" v-model="formulario.cargaHoraria" placeholder="Ex.: 80"
+            min="1" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a class="button button-secondary" href="#" @click.prevent="fecharFormulario">Cancelar</a>
+        <button class="button button-primary" type="submit">
+          {{ formulario.id ? 'Salvar alterações' : 'Salvar cadastro' }}
+        </button>
+      </div>
+    </form>
+  </Modal>
+
+  <Modal
+    titulo="Confirmar remoção"
+    etiqueta="REMOVER REGISTRO"
+    :descricao="`Deseja remover a disciplina ${disciplinaParaRemover.nome}? Esta ação não pode ser desfeita.`"
+    :aberto="modalRemoverAberto"
+    @fechar="fecharRemocao"
+  >
+    <div class="modal-footer">
+      <a class="button button-secondary" href="#" @click.prevent="fecharRemocao">Cancelar</a>
+      <a class="button button-danger" href="#" @click.prevent="confirmarRemocao">Confirmar remoção</a>
     </div>
-  </section>
-  <section class="modal" id="modal-remover-2">
-    <div class="modal-panel">
-      <header class="modal-header">
-        <div><span class="eyebrow">REMOVER REGISTRO</span>
-          <h2>Confirmar remoção</h2>
-          <p>Esta é uma demonstração visual. A remoção não altera os dados estáticos.</p>
-        </div><a class="icon-button" href="#" aria-label="Fechar modal">×</a>
-      </header>
-      <div class="modal-footer"><a class="button button-secondary" href="#">Cancelar</a><a class="button button-danger"
-          href="#">Confirmar remoção</a></div>
-    </div>
-  </section>
-  <section class="modal" id="modal-remover-3">
-    <div class="modal-panel">
-      <header class="modal-header">
-        <div><span class="eyebrow">REMOVER REGISTRO</span>
-          <h2>Confirmar remoção</h2>
-          <p>Esta é uma demonstração visual. A remoção não altera os dados estáticos.</p>
-        </div><a class="icon-button" href="#" aria-label="Fechar modal">×</a>
-      </header>
-      <div class="modal-footer"><a class="button button-secondary" href="#">Cancelar</a><a class="button button-danger"
-          href="#">Confirmar remoção</a></div>
-    </div>
-  </section>
-  <section class="modal" id="modal-remover-4">
-    <div class="modal-panel">
-      <header class="modal-header">
-        <div><span class="eyebrow">REMOVER REGISTRO</span>
-          <h2>Confirmar remoção</h2>
-          <p>Esta é uma demonstração visual. A remoção não altera os dados estáticos.</p>
-        </div><a class="icon-button" href="#" aria-label="Fechar modal">×</a>
-      </header>
-      <div class="modal-footer"><a class="button button-secondary" href="#">Cancelar</a><a class="button button-danger"
-          href="#">Confirmar remoção</a></div>
-    </div>
-  </section>
+  </Modal>
+
+  <Notificacao
+    v-if="notificacao.exibir"
+    :mensagem="notificacao.mensagem"
+    :tipo="notificacao.tipo"
+    @fechar="fecharNotificacao"
+  />
+
 </template>

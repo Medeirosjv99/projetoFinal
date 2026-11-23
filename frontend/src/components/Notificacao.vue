@@ -12,7 +12,7 @@
         }
     })
 
-    const emit = defineEmits(["fechar", "asdasdas", "dasdasdasd"])
+    const emit = defineEmits(["fechar"])
 </script>
 
 <template>

@@ -1,71 +1,50 @@
-import API_URL from "./api.js";
+import API_URL, { enviarRequisicao } from "./api.js";
 
 let listar = async function () {
-  const resposta = await fetch(`${API_URL}/Disciplina`);
-
-  if (!resposta.ok) {
-    throw new Error("Erro ao listar as Disciplina");
-  }
-
-  return await resposta.json();
+  return await enviarRequisicao(
+    `${API_URL}/disciplinas`,
+    { method: "GET" },
+    "Não foi possível carregar as disciplinas."
+  );
 };
 
 let buscarPorId = async function (id) {
-  const resposta = await fetch(`${API_URL}/Disciplina/${id}`);
-
-  if (!resposta.ok) {
-    throw new Error("Erro ao buscar as disciplina");
-  }
-
-  return await resposta.json();
+  return await enviarRequisicao(
+    `${API_URL}/disciplinas/${id}`,
+    { method: "GET" },
+    "Não foi possível buscar a disciplina."
+  );
 };
 
 let cadastrar = async function (disciplina) {
-  const resposta = await fetch(`${API_URL}/Disciplina`, {
-    method: "POST",
-
-    headers: {
-      "Content-Type": "application/json",
+  return await enviarRequisicao(
+    `${API_URL}/disciplinas`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(disciplina),
     },
-
-    body: JSON.stringify(disciplina),
-  });
-
-  if (!resposta.ok) {
-    throw new Error("Erro ao cadastrar disciplina");
-  }
-
-  return await resposta.json();
+    "Não foi possível realizar o cadastro. Verifique os dados e tente novamente."
+  );
 };
 
 let alterar = async function (id, disciplina) {
-  const resposta = await fetch(`${API_URL}/Disciplina/${id}`, {
-    method: "PUT",
-
-    headers: {
-      "Content-Type": "application/json",
+  return await enviarRequisicao(
+    `${API_URL}/disciplinas/${id}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(disciplina),
     },
-
-    body: JSON.stringify(disciplina),
-  });
-
-  if (!resposta.ok) {
-    throw new Error("Erro ao alterar disciplina");
-  }
-
-  return await resposta.json();
+    "Não foi possível atualizar a disciplina. Verifique os dados e tente novamente."
+  );
 };
 
 let excluir = async function (id) {
-  const resposta = await fetch(`${API_URL}/Disciplina/${id}`, {
-    method: "DELETE",
-  });
-
-  if (!resposta.ok) {
-    throw new Error("Erro ao excluir disciplina");
-  }
-
-  return await resposta.json();
+  return await enviarRequisicao(
+    `${API_URL}/disciplinas/${id}`,
+    { method: "DELETE" },
+    "Não foi possível remover a disciplina."
+  );
 };
-
 export { listar, buscarPorId, cadastrar, alterar, excluir };
